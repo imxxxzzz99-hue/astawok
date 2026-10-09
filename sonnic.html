@@ -141,7 +141,7 @@ nextRing=200;nextFoe=600;nextStuff=900;nextDecor=1500;
 }
 var nextRing=200,nextFoe=600,nextStuff=900,nextDecor=1500;
 
-/* ============ INPUT ============ */
+/* ============ INPUT (fix tap bug) ============ */
 function jump(){
 ac();
 if(state==='ready'){state='play';reset();return}
@@ -153,10 +153,59 @@ ac();
 if(state!=='play')return;
 if(!boostOn&&boost>=25){boostOn=true;boostT=0;wflash=1;sBoost();humOn()}
 }
-document.getElementById('jumpB').addEventListener('pointerdown',function(e){e.preventDefault();jump()});
-document.getElementById('boostB').addEventListener('pointerdown',function(e){e.preventDefault();doBoost()});
-document.addEventListener('pointerdown',function(e){if(e.target.closest('.pads,.mbtn'))return;if(e.clientX<innerWidth/2)doBoost();else jump()});
-document.addEventListener('keydown',function(e){if((e.code==='Space'||e.code==='ArrowUp')&&!e.repeat){e.preventDefault();jump()}if(e.code==='KeyB'&&!e.repeat)doBoost()});
+
+/* Debounce: 1 tap = 1 aksi (anti double-trigger) */
+var _lastTap=0;
+function _tap(action){
+var now=Date.now();
+if(now-_lastTap<80)return;
+_lastTap=now;
+try{action()}catch(e){}
+}
+
+/* Bind tombol BOOST/JUMP: pointerdown + touchstart, stopPropagation */
+function bindBtn(id,action){
+var el=document.getElementById(id);
+if(!el)return;
+var h=function(e){
+e.preventDefault();
+e.stopPropagation();
+if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+_tap(action);
+};
+el.addEventListener('pointerdown',h,{passive:false});
+el.addEventListener('touchstart',h,{passive:false});
+}
+
+bindBtn('jumpB',jump);
+bindBtn('boostB',doBoost);
+
+/* Global tap HANYA di area canvas (.gw), bukan document */
+(function(){
+var gw=document.querySelector('.gw');
+if(!gw)return;
+var gh=function(e){
+e.preventDefault();
+e.stopPropagation();
+var cx=e.clientX;
+if((cx===0||cx===undefined)&&e.touches&&e.touches[0])cx=e.touches[0].clientX;
+if((cx===0||cx===undefined)&&e.changedTouches&&e.changedTouches[0])cx=e.changedTouches[0].clientX;
+var rect=gw.getBoundingClientRect();
+var relX=cx-rect.left;
+_tap(function(){
+if(relX<rect.width*0.5)doBoost();
+else jump();
+});
+};
+gw.addEventListener('pointerdown',gh,{passive:false});
+gw.addEventListener('touchstart',gh,{passive:false});
+})();
+
+/* Keyboard (opsional, buat device dengan keyboard) */
+document.addEventListener('keydown',function(e){
+if((e.code==='Space'||e.code==='ArrowUp')&&!e.repeat){e.preventDefault();jump()}
+if(e.code==='KeyB'&&!e.repeat){e.preventDefault();doBoost()}
+});
 
 /* ============ SETTING SOUND ============ */
 var mb=document.getElementById('muteB');
