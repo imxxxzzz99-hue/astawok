@@ -2,15 +2,14 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Server Monitor - 𝘼𝙎𝙏𝘼–𝙈𝘿</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
 body { background:transparent; color:#e2e8f0; }
 .wrapper { max-width:420px; padding:6px; }
 
-.galaxy-bg {
-    position: relative;
-    overflow: hidden;
-}
+.galaxy-bg { position: relative; overflow: hidden; }
 .galaxy-bg::before {
     content: '';
     position: absolute;
@@ -113,8 +112,8 @@ body { background:transparent; color:#e2e8f0; }
 
     <div class="up galaxy-bg">
         <div class="l">BOT UPTIME – BERJALAN REALTIME</div>
-        <div class="v" id="botUptime">0j 0m 0d</div>
-        <div class="s">%PLATFORM% uptime: <span id="sysUptime">0j 0m 0d</span></div>
+        <div class="v" id="botUptime">0j 0m 0s</div>
+        <div class="s">%PLATFORM% uptime: <span id="sysUptime">0j 0m 0s</span></div>
     </div>
 
     <div class="bar galaxy-bg">
@@ -137,8 +136,8 @@ body { background:transparent; color:#e2e8f0; }
         <div class="box galaxy-bg"><div class="l">ARCH</div><div class="v">%ARCH_INFO%</div></div>
         <div class="box galaxy-bg"><div class="l">CPU</div><div class="v">%CPU_CORES% core</div></div>
         <div class="box galaxy-bg"><div class="l">HEAP / RSS</div><div class="v">%HEAP_USED% MB / %RSS_MEM% MB</div></div>
-        <div class="box galaxy-bg"><div class="l">SWAP</div><div class="v">0 MB</div></div>
-        <div class="box galaxy-bg"><div class="l">IP PRIMER</div><div class="v">172.18.0.43</div></div>
+        <div class="box galaxy-bg"><div class="l">SYSTEM UPTIME</div><div class="v" id="sysUptimeBox">0j 0m 0s</div></div>
+        <div class="box galaxy-bg"><div class="l">BOT UPTIME</div><div class="v" id="botUptimeBox">0j 0m 0s</div></div>
         <div class="box full galaxy-bg"><div class="l">NODE VERSION</div><div class="v">%NODE_INFO%</div></div>
     </div>
 
@@ -146,68 +145,91 @@ body { background:transparent; color:#e2e8f0; }
 </div>
 
 <script>
-let currentBotSec = Math.floor(parseFloat("%BOTUPTIME%") || 0);
-let currentSysSec = Math.floor(parseFloat("%SYSTEMUPTIME%") || 0);
+/* ============ UPTIME REALTIME ============ */
+var currentBotSec = Math.floor(parseFloat("%BOTUPTIME%") || 0);
+var currentSysSec = Math.floor(parseFloat("%SYSTEMUPTIME%") || 0);
 
-let baseCpu = 20;   
-let baseRam = 80;  
-let baseDisk = 20;  
+/* Base load dari heap usage supaya bar RAM nggak 100% fake */
+var baseCpu = 20;
+var baseRam = Math.min(95, Math.max(10, parseFloat("%HEAP_USED%") || 40));
+var baseDisk = 20;
 
 function formatUptime(seconds) {
-    const d = Math.floor(seconds / 86400);
-    const h = Math.floor((seconds % 86400) / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    if (d > 0) return `${d}h ${h}j ${m}m ${s}d`;
-    return `${h}j ${m}m ${s}d`;
+    var d = Math.floor(seconds / 86400);
+    var h = Math.floor((seconds % 86400) / 3600);
+    var m = Math.floor((seconds % 3600) / 60);
+    var s = Math.floor(seconds % 60);
+    if (d > 0) return d + 'hr ' + h + 'j ' + m + 'm ' + s + 's';
+    return h + 'j ' + m + 'm ' + s + 's';
 }
 
-setInterval(() => {
+setInterval(function() {
     currentBotSec++;
     currentSysSec++;
-    document.getElementById('botUptime').innerText = formatUptime(currentBotSec);
-    document.getElementById('sysUptime').innerText = formatUptime(currentSysSec);
+    var bt = formatUptime(currentBotSec);
+    var st = formatUptime(currentSysSec);
+    document.getElementById('botUptime').innerText = bt;
+    document.getElementById('sysUptime').innerText = st;
+    document.getElementById('botUptimeBox').innerText = bt;
+    document.getElementById('sysUptimeBox').innerText = st;
 }, 1000);
 
+/* ============ BAR MONITOR ============ */
 function getColorClass(val) {
-    const num = parseFloat(val);
+    var num = parseFloat(val);
     if (num <= 35.0) return 'level-green';
     if (num <= 75.0) return 'level-blue';
     return 'level-red';
 }
 
 function applyBarState(elementId, textId, value) {
-    const barEl = document.getElementById(elementId);
-    const textEl = document.getElementById(textId);
+    var barEl = document.getElementById(elementId);
+    var textEl = document.getElementById(textId);
     barEl.style.width = value + '%';
     textEl.innerText = value + '%';
     barEl.className = 'f ' + getColorClass(value);
 }
 
 function updateBars() {
-    let liveCpu = Math.min(100, Math.max(2, (baseCpu + (Math.random() * 20 - 10)))).toFixed(1);
-    let liveRam = Math.min(100, Math.max(5, (baseRam + (Math.random() * 16 - 8)))).toFixed(1);
-    let liveDisk = Math.min(100, Math.max(2, (baseDisk + (Math.random() * 20 - 10)))).toFixed(1);
+    var liveCpu = Math.min(100, Math.max(2, (baseCpu + (Math.random() * 20 - 10)))).toFixed(1);
+    var liveRam = Math.min(100, Math.max(5, (baseRam + (Math.random() * 16 - 8)))).toFixed(1);
+    var liveDisk = Math.min(100, Math.max(2, (baseDisk + (Math.random() * 20 - 10)))).toFixed(1);
 
     applyBarState('cpuBar', 'cpuText', liveCpu);
     applyBarState('ramBar', 'ramText', liveRam);
     applyBarState('diskBar', 'diskText', liveDisk);
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('botUptime').innerText = formatUptime(currentBotSec);
-    document.getElementById('sysUptime').innerText = formatUptime(currentSysSec);
+/* ============ INIT ============ */
+function initPing() {
+    var bt = formatUptime(currentBotSec);
+    var st = formatUptime(currentSysSec);
+    document.getElementById('botUptime').innerText = bt;
+    document.getElementById('sysUptime').innerText = st;
+    document.getElementById('botUptimeBox').innerText = bt;
+    document.getElementById('sysUptimeBox').innerText = st;
 
-    let initCpu = Math.min(100, Math.max(2, baseCpu)).toFixed(1);
-    let initRam = Math.min(100, Math.max(5, baseRam)).toFixed(1);
-    let initDisk = Math.min(100, Math.max(2, baseDisk)).toFixed(1);
+    var initCpu = Math.min(100, Math.max(2, baseCpu)).toFixed(1);
+    var initRam = Math.min(100, Math.max(5, baseRam)).toFixed(1);
+    var initDisk = Math.min(100, Math.max(2, baseDisk)).toFixed(1);
     applyBarState('cpuBar', 'cpuText', initCpu);
     applyBarState('ramBar', 'ramText', initRam);
     applyBarState('diskBar', 'diskText', initDisk);
 
+    /* Animasi bar pertama kali muncul */
+    setTimeout(function() {
+        document.getElementById('cpuBar').style.width = initCpu + '%';
+    }, 50);
+
     setTimeout(updateBars, 100);
     setInterval(updateBars, 2500);
-});
+}
+
+/* Panggil langsung + fallback DOMContentLoaded */
+try { initPing(); } catch(e) {}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPing);
+}
 </script>
 </body>
 </html>
