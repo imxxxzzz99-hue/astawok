@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Catur vs AI</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; touch-action: manipulation; } 
+body, html { margin: 0; padding: 0; background: #09090b; color: #f4f4f5; font-family: system-ui, -apple-system, sans-serif; } 
+
+.main-wrap { padding: 12px; display: flex; justify-content: center; align-items: center; min-height: 100vh; } 
+.game-container { 
+  background: rgba(24, 24, 27, 0.85); 
+  backdrop-filter: blur(12px); 
+  width: 100%; 
+  max-width: 400px; 
+  border-radius: 20px; 
+  padding: 16px; 
+  border: 1px solid rgba(255, 255, 255, 0.08); 
+  box-shadow: 0 20px 40px rgba(0,0,0,0.8); 
+} 
+
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; } 
+.title { font-size: 18px; font-weight: 800; letter-spacing: 0.5px; color: #ffffff; text-transform: uppercase; display: flex; align-items: center; gap: 8px; } 
+.title::before { content: ''; display: inline-block; width: 8px; height: 8px; background: #6366f1; border-radius: 50%; box-shadow: 0 0 10px #6366f1; } 
+
+.color-toggle, .difficulty-toggle { display: flex; background: #121215; border-radius: 12px; padding: 4px; width: 100%; margin-bottom: 10px; border: 1px solid #27272a; gap: 4px; } 
+.color-btn, .diff-btn { flex: 1; padding: 9px 4px; background: transparent; color: #a1a1aa; border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; text-align: center; } 
+
+.color-btn.active-white { background: #ffffff; color: #09090b; box-shadow: 0 4px 12px rgba(255,255,255,0.15); } 
+.color-btn.active-black { background: #27272a; color: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.5); } 
+
+.diff-btn.active-diff { background: #6366f1; color: #ffffff; box-shadow: 0 2px 10px rgba(99,102,241,0.4); } 
+
+#board-wrap { width: 100%; aspect-ratio: 1 / 1; border-radius: 14px; overflow: hidden; border: 2px solid #27272a; box-shadow: 0 10px 30px rgba(0,0,0,0.6); position: relative; } 
+#chessboard { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); width: 100%; height: 100%; } 
+
+.sq { display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; width: 100%; height: 100%; transition: background-color 0.15s ease; } 
+.sq.light { background-color: #ebecf0; } 
+.sq.dark { background-color: #4a4e69; } 
+
+.sq.selected { background-color: #6366f1 !important; } 
+.sq.last-move { box-shadow: inset 0 0 0 100px rgba(99, 102, 241, 0.22); } 
+
+.sq.possible::after { 
+  content: ''; position: absolute; width: 26%; height: 26%; background-color: rgba(99, 102, 241, 0.75); border-radius: 50%; pointer-events: none; 
+} 
+.sq.possible-capture::after { 
+  content: ''; position: absolute; width: 88%; height: 88%; border: 4px solid rgba(239, 68, 68, 0.85); border-radius: 50%; pointer-events: none; box-sizing: border-box;
+} 
+
+.controls { display: flex; gap: 8px; margin-top: 12px; } 
+.btn-action { flex: 1; padding: 11px; background: #27272a; color: #f4f4f5; border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; } 
+.btn-action:active { transform: scale(0.97); background: #3f3f46; } 
+
+#status { margin-top: 10px; font-size: 13px; font-weight: 700; background: #18181b; color: #a1a1aa; padding: 10px 14px; border-radius: 10px; border: 1px solid #27272a; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px; } 
+.status-badge { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block; } 
+</style>
+</head>
+<body>
+
+<div class="main-wrap"> 
+ <div class="game-container"> 
+ <div class="header">
+   <div class="title">CATUR</div>
+ </div> 
+ 
+ <div class="color-toggle">
+   <button id="btnWhite" class="color-btn active-white" onclick="selectColor('w')">⚪ Putih</button>
+   <button id="btnBlack" class="color-btn" onclick="selectColor('b')">⚫ Hitam</button>
+ </div>
+
+ <div class="difficulty-toggle">
+   <button id="diffEasy" class="diff-btn" onclick="setDifficulty('easy')">Easy</button>
+   <button id="diffMedium" class="diff-btn active-diff" onclick="setDifficulty('medium')">Medium</button>
+   <button id="diffHard" class="diff-btn" onclick="setDifficulty('hard')">Hard</button>
+ </div>
+
+ <div id="board-wrap">
+   <div id="chessboard"></div> 
+ </div>
+
+ <div id="status"><span class="status-badge"></span><span id="statusText">Giliran: Putih</span></div> 
+
+ <div class="controls">
+   <button class="btn-action" onclick="resetGame()">🔄 Reset Board</button>
+ </div>
+ </div> 
+</div>
+
+<script> 
+const SVG_PIECES = {
+  'P': `<svg viewBox="0 0 45 45" width="82%" height="82%"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#ffffff" stroke="#111111" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  'N': `<svg viewBox="0 0 45 45" width="82%" height="82%"><g fill="none" fill-rule="evenodd" stroke="#111111" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21" fill="#ffffff"/><path d="M24 18c.38 2.91-5.55 7.37-8 9-3 2-2.82 4.34-5 4-1.042-.94 1.41-3.04 0-3-1 0 .19 1.23-1 2-1 0-4.003 1-4-4 0-2 6-12 6-12s1.89-1.9 2-3.5c-.73-.994-.5-2-.5-3 1-1 3 2.5 3 2.5h2s.78-1.992 2.5-3c1 0 1 3 1 3" fill="#ffffff"/><path d="M9.5 25.5a.5.5 0 1 1-1 0 .5.5 0 1 1 1 0zm5.433-9.75a.5 1.5 30 1 1-.866-.5.5 1.5 30 1 1 .866.5z" fill="#111111" stroke="none"/></g></svg>`,
+  'B': `<svg viewBox="0 0 45 45" width="82%" height="82%"><g fill="none" fill-rule="evenodd" stroke="#111111" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g fill="#ffffff" stroke-linecap="butt"><path d="M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.354.49-2.323.47-3-.5 1.354-1.94 3-2 3-2z"/><path d="M15 32c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2z"/><path d="M25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z"/></g><path d="M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5" stroke-linejoin="miter"/></g></svg>`,
+  'R': `<svg viewBox="0 0 45 45" width="82%" height="82%"><g fill="#ffffff" fill-rule="evenodd" stroke="#111111" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zm3-3v-4h21v4H12zm-1-22V9h4v2h5V9h5v2h5V9h4v5" stroke-linecap="butt"/><path d="M34 14l-3 3H14l-3-3"/><path d="M31 17v12.5H14V17" stroke-linecap="butt" stroke-linejoin="miter"/><path d="M31 29.5l1.5 2.5h-20l1.5-2.5"/><path d="M11 14h23" fill="none" stroke-linejoin="miter"/></g></svg>`,
+  'Q': `<svg viewBox="0 0 45 45" width="82%" height="82%"><g fill="#ffffff" fill-rule="evenodd" stroke="#111111" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM24.5 7.5a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM41 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM16 8.5a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM33 9a2 2 0 1 1-4 0 2 2 0 1 1 4 0z"/><path d="M9 26c8.5-1.5 21-1.5 27 0l2-12-7 11V11l-5.5 13.5-3-15-3 15-5.5-14V25L7 14l2 12z" stroke-linecap="butt"/><path d="M9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1.5 2.5-1.5 2.5-1.5 1.5.5 2.5.5 2.5 6.5 1 16.5 1 23 0 0 0 1.5-1 0-2.5 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4-8.5-1.5-18.5-1.5-27 0z" stroke-linecap="butt"/><path d="M11.5 30c3.5-1 18.5-1 22 0M12 33.5c6-1 15-1 21 0" fill="none"/></g></svg>`,
+  'K': `<svg viewBox="0 0 45 45" width="82%" height="82%"><g fill="none" fill-rule="evenodd" stroke="#111111" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22.5 11.63V6M20 8h5" stroke-linejoin="miter"/><path d="M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5" fill="#ffffff" stroke-linecap="butt" stroke-linejoin="miter"/><path d="M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-1-11 8-17 8s-13-9-17-8c-3 6 6 10.5 6 10.5V37z" fill="#ffffff"/><path d="M11.5 30c5.5-3 15.5-3 21 0M11.5 33.5c5.5-3 15.5-3 21 0M11.5 37c5.5-3 15.5-3 21 0"/></g></svg>`,
+  'p': `<svg viewBox="0 0 45 45" width="82%" height="82%"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#1a1a1a" stroke="#e8e8e8" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  'n': `<svg viewBox="0 0 45 45" width="82%" height="82%"><g fill="none" fill-rule="evenodd" stroke="#e8e8e8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21" fill="#1a1a1a"/><path d="M24 18c.38 2.91-5.55 7.37-8 9-3 2-2.82 4.34-5 4-1.042-.94 1.41-3.04 0-3-1 0 .19 1.23-1 2-1 0-4.003 1-4-4 0-2 6-12 6-12s1.89-1.9 2-3.5c-.73-.994-.5-2-.5-3 1-1 3 2.5 3 2.5h2s.78-1.992 2.5-3c1 0 1 3 1 3" fill="#1a1a1a"/><path d="M9.5 25.5a.5.5 0 1 1-1 0 .5.5 0 1 1 1 0zm5.433-9.75a.5 1.5 30 1 1-.866-.5.5 1.5 30 1 1 .866.5z" fill="#e8e8e8" stroke="none"/></g></svg>`,
+  'b': `<svg viewBox="0 0 45 45" width="82%" height="82%"><g fill="none" fill-rule="evenodd" stroke="#e8e8e8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g fill="#1a1a1a" stroke-linecap="butt"><path d="M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.354.49-2.323.47-3-.5 1.354-1.94 3-2 3-2z"/><path d="M15 32c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2z"/><path d="M25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z"/></g><path d="M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5" stroke-linejoin="miter"/></g></svg>`,
+  'r': `<svg viewBox="0 0 45 45" width="82%" height="82%"><g fill="#1a1a1a" fill-rule="evenodd" stroke="#e8e8e8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zm3-3v-4h21v4H12zm-1-22V9h4v2h5V9h5v2h5V9h4v5" stroke-linecap="butt"/><path d="M34 14l-3 3H14l-3-3"/><path d="M31 17v12.5H14V17" stroke-linecap="butt" stroke-linejoin="miter"/><path d="M31 29.5l1.5 2.5h-20l1.5-2.5"/><path d="M11 14h23" fill="none" stroke-linejoin="miter"/></g></svg>`,
+  'q': `<svg viewBox="0 0 45 45" width="82%" height="82%"><g fill="#1a1a1a" fill-rule="evenodd" stroke="#e8e8e8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM24.5 7.5a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM41 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM16 8.5a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM33 9a2 2 0 1 1-4 0 2 2 0 1 1 4 0z"/><path d="M9 26c8.5-1.5 21-1.5 27 0l2-12-7 11V11l-5.5 13.5-3-15-3 15-5.5-14V25L7 14l2 12z" stroke-linecap="butt"/><path d="M9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1.5 2.5-1.5 2.5-1.5 1.5.5 2.5.5 2.5 6.5 1 16.5 1 23 0 0 0 1.5-1 0-2.5 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4-8.5-1.5-18.5-1.5-27 0z" stroke-linecap="butt"/><path d="M11.5 30c3.5-1 18.5-1 22 0M12 33.5c6-1 15-1 21 0" fill="none"/></g></svg>`,
+  'k': `<svg viewBox="0 0 45 45" width="82%" height="82%"><g fill="none" fill-rule="evenodd" stroke="#e8e8e8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22.5 11.63V6M20 8h5" stroke-linejoin="miter"/><path d="M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5" fill="#1a1a1a" stroke-linecap="butt" stroke-linejoin="miter"/><path d="M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-1-11 8-17 8s-13-9-17-8c-3 6 6 10.5 6 10.5V37z" fill="#1a1a1a"/><path d="M11.5 30c5.5-3 15.5-3 21 0M11.5 33.5c5.5-3 15.5-3 21 0M11.5 37c5.5-3 15.5-3 21 0"/></g></svg>`
+};
+
+const INITIAL_BOARD = [
+  ['r','n','b','q','k','b','n','r'],
+  ['p','p','p','p','p','p','p','p'],
+  ['','','','','','','',''],
+  ['','','','','','','',''],
+  ['','','','','','','',''],
+  ['','','','','','','',''],
+  ['P','P','P','P','P','P','P','P'],
+  ['R','N','B','Q','K','B','N','R']
+];
+
+let boardState = [];
+let playerSide = 'w'; 
+let aiDifficulty = 'medium';
+let turn = 'w'; 
+let selectedSq = null; 
+let lastMove = null;
+let validMoves = []; 
+let gameOver = false;
+let audioCtx = null;
+let aiThinking = false;
+
+function playSound(type) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    let now = audioCtx.currentTime;
+    if (type === 'move') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(420, now);
+      osc.frequency.exponentialRampToValueAtTime(220, now + 0.07);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
+      osc.start(now); osc.stop(now + 0.07);
+    } else if (type === 'capture') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(550, now);
+      osc.frequency.exponentialRampToValueAtTime(140, now + 0.1);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+      osc.start(now); osc.stop(now + 0.1);
+    }
+  } catch(e){}
+}
+
+function selectColor(color) {
+  playerSide = color;
+  document.getElementById('btnWhite').className = 'color-btn' + (color === 'w' ? ' active-white' : '');
+  document.getElementById('btnBlack').className = 'color-btn' + (color === 'b' ? ' active-black' : '');
+  resetGame();
+}
+
+function setDifficulty(level) {
+  aiDifficulty = level;
+  document.getElementById('diffEasy').classList.toggle('active-diff', level === 'easy');
+  document.getElementById('diffMedium').classList.toggle('active-diff', level === 'medium');
+  document.getElementById('diffHard').classList.toggle('active-diff', level === 'hard');
+}
+
+function resetGame() {
+  boardState = INITIAL_BOARD.map(row => [...row]);
+  turn = 'w';
+  selectedSq = null;
+  lastMove = null;
+  validMoves = [];
+  gameOver = false;
+  aiThinking = false;
+  renderBoard();
+  updateStatus();
+  if (playerSide === 'b') setTimeout(makeAiMove, 400);
+}
+
+function renderBoard() {
+  const container = document.getElementById('chessboard');
+  container.innerHTML = '';
+  for (let i = 0; i < 8; i++) {
+    for (let j = 0; j < 8; j++) {
+      let r = (playerSide === 'w') ? i : 7 - i;
+      let c = (playerSide === 'w') ? j : 7 - j;
+      const sq = document.createElement('div');
+      const isDark = (r + c) % 2 === 1;
+      sq.className = 'sq ' + (isDark ? 'dark' : 'light');
+      if (lastMove && ((lastMove.from.r === r && lastMove.from.c === c) || (lastMove.to.r === r && lastMove.to.c === c))) sq.classList.add('last-move');
+      if (selectedSq && selectedSq.r === r && selectedSq.c === c) sq.classList.add('selected');
+      const moveMatch = validMoves.find(m => m.r === r && m.c === c);
+      if (moveMatch) {
+        if (boardState[r][c]) sq.classList.add('possible-capture');
+        else sq.classList.add('possible');
+      }
+      const piece = boardState[r][c];
+      if (piece) sq.innerHTML = SVG_PIECES[piece] || '';
+      sq.onclick = () => handleSquareClick(r, c);
+      container.appendChild(sq);
+    }
+  }
+}
+
+function handleSquareClick(r, c) {
+  if (gameOver || turn !== playerSide || aiThinking) return;
+  const piece = boardState[r][c];
+  const isOwnPiece = piece && ((playerSide === 'w' && piece === piece.toUpperCase()) || (playerSide === 'b' && piece === piece.toLowerCase()));
+  if (selectedSq) {
+    const move = validMoves.find(m => m.r === r && m.c === c);
+    if (move) {
+      executeMove(selectedSq, {r, c});
+      selectedSq = null;
+      validMoves = [];
+      if (!gameOver) { aiThinking = true; setTimeout(makeAiMove, 400); }
+      return;
+    }
+  }
+  if (isOwnPiece) { selectedSq = {r, c}; validMoves = getValidMoves(r, c, boardState); }
+  else { selectedSq = null; validMoves = []; }
+  renderBoard();
+}
+
+function executeMove(from, to) {
+  const piece = boardState[from.r][from.c];
+  const target = boardState[to.r][to.c];
+  boardState[to.r][to.c] = piece;
+  boardState[from.r][from.c] = '';
+  lastMove = { from, to };
+  if (piece.toLowerCase() === 'p' && (to.r === 0 || to.r === 7)) {
+    boardState[to.r][to.c] = (piece === piece.toUpperCase()) ? 'Q' : 'q';
+  }
+  playSound(target ? 'capture' : 'move');
+  if (target && target.toLowerCase() === 'k') {
+    gameOver = true;
+    renderBoard();
+    document.getElementById('statusText').innerText = '🎉 ' + (turn === 'w' ? 'Putih' : 'Hitam') + ' Menang!';
+    return;
+  }
+  turn = (turn === 'w') ? 'b' : 'w';
+  renderBoard();
+  updateStatus();
+}
+
+function getValidMoves(r, c, board) {
+  const piece = board[r][c];
+  if (!piece) return [];
+  const isWhite = piece === piece.toUpperCase();
+  const moves = [];
+  function addMove(nr, nc) {
+    if (nr < 0 || nr > 7 || nc < 0 || nc > 7) return false;
+    const target = board[nr][nc];
+    if (!target) { moves.push({r: nr, c: nc}); return true; }
+    if (isWhite !== (target === target.toUpperCase())) moves.push({r: nr, c: nc});
+    return false;
+  }
+  const type = piece.toLowerCase();
+  if (type === 'p') {
+    const dir = isWhite ? -1 : 1;
+    const startRank = isWhite ? 6 : 1;
+    if (r + dir >= 0 && r + dir <= 7 && !board[r + dir][c]) {
+      moves.push({r: r + dir, c});
+      if (r === startRank && !board[r + 2 * dir][c]) moves.push({r: r + 2 * dir, c});
+    }
+    [-1, 1].forEach(dc => {
+      const nr = r + dir, nc = c + dc;
+      if (nr >= 0 && nr <= 7 && nc >= 0 && nc <= 7) {
+        const target = board[nr][nc];
+        if (target && isWhite !== (target === target.toUpperCase())) moves.push({r: nr, c: nc});
+      }
+    });
+  } else if (type === 'n') {
+    [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr, dc]) => addMove(r + dr, c + dc));
+  } else if (type === 'b' || type === 'r' || type === 'q') {
+    const dirs = [];
+    if (type === 'b' || type === 'q') dirs.push([-1,-1],[-1,1],[1,-1],[1,1]);
+    if (type === 'r' || type === 'q') dirs.push([-1,0],[1,0],[0,-1],[0,1]);
+    dirs.forEach(([dr, dc]) => {
+      let nr = r + dr, nc = c + dc;
+      while (addMove(nr, nc)) { nr += dr; nc += dc; }
+    });
+  } else if (type === 'k') {
+    [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dr, dc]) => addMove(r + dr, c + dc));
+  }
+  return moves;
+}
+
+function cloneBoard(b) { return b.map(row => [...row]); }
+
+function getAllBoardMoves(board, forWhite) {
+  let moves = [];
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const piece = board[r][c];
+    if (piece && (piece === piece.toUpperCase()) === forWhite) {
+      getValidMoves(r, c, board).forEach(m => moves.push({ from: {r, c}, to: m }));
+    }
+  }
+  return moves;
+}
+
+function evaluateBoard(board, isAiWhite) {
+  const val = {'p':10, 'n':30, 'b':35, 'r':50, 'q':90, 'k':1000};
+  let score = 0;
+  for(let r = 0; r < 8; r++) for(let c = 0; c < 8; c++) {
+    const p = board[r][c];
+    if(!p) continue;
+    const isW = p === p.toUpperCase();
+    let pVal = val[p.toLowerCase()] || 0;
+    if ((r === 3 || r === 4) && (c === 3 || c === 4)) pVal += 3;
+    if (isW === isAiWhite) score += pVal; else score -= pVal;
+  }
+  return score;
+}
+
+function minimax(board, depth, isMaximizing, isAiWhite, alpha, beta) {
+  if (depth === 0) return evaluateBoard(board, isAiWhite);
+  let moves = getAllBoardMoves(board, isMaximizing ? isAiWhite : !isAiWhite);
+  if (moves.length === 0) return isMaximizing ? -9999 : 9999;
+  if (isMaximizing) {
+    let maxEval = -99999;
+    for (let m of moves) {
+      let nextBoard = cloneBoard(board);
+      nextBoard[m.to.r][m.to.c] = nextBoard[m.from.r][m.from.c];
+      nextBoard[m.from.r][m.from.c] = '';
+      let evalVal = minimax(nextBoard, depth - 1, false, isAiWhite, alpha, beta);
+      maxEval = Math.max(maxEval, evalVal);
+      alpha = Math.max(alpha, evalVal);
+      if (beta <= alpha) break;
+    }
+    return maxEval;
+  } else {
+    let minEval = 99999;
+    for (let m of moves) {
+      let nextBoard = cloneBoard(board);
+      nextBoard[m.to.r][m.to.c] = nextBoard[m.from.r][m.from.c];
+      nextBoard[m.from.r][m.from.c] = '';
+      let evalVal = minimax(nextBoard, depth - 1, true, isAiWhite, alpha, beta);
+      minEval = Math.min(minEval, evalVal);
+      beta = Math.min(beta, evalVal);
+      if (beta <= alpha) break;
+    }
+    return minEval;
+  }
+}
+
+function makeAiMove() {
+  if (gameOver) { aiThinking = false; return; }
+  const isAiWhite = (playerSide === 'b');
+  let allMoves = getAllBoardMoves(boardState, isAiWhite);
+  if (allMoves.length === 0) {
+    gameOver = true; aiThinking = false;
+    document.getElementById('statusText').innerText = '🎉 Game Over!';
+    return;
+  }
+  let chosen;
+  if (aiDifficulty === 'easy') {
+    chosen = allMoves[Math.floor(Math.random() * allMoves.length)];
+  } else if (aiDifficulty === 'medium') {
+    const pieceVal = {'p':10, 'n':30, 'b':30, 'r':50, 'q':90, 'k':1000};
+    let bestScore = -99999;
+    let bestMoves = [];
+    allMoves.forEach(m => {
+      const target = boardState[m.to.r][m.to.c];
+      let score = target ? (pieceVal[target.toLowerCase()] || 0) * 10 : 0;
+      score += Math.floor(Math.random() * 5);
+      if (score > bestScore) { bestScore = score; bestMoves = [m]; }
+      else if (score === bestScore) bestMoves.push(m);
+    });
+    chosen = bestMoves[Math.floor(Math.random() * bestMoves.length)];
+  } else {
+    let bestScore = -99999;
+    let bestMoves = [];
+    allMoves.forEach(m => {
+      let nextBoard = cloneBoard(boardState);
+      nextBoard[m.to.r][m.to.c] = nextBoard[m.from.r][m.from.c];
+      nextBoard[m.from.r][m.from.c] = '';
+      let score = minimax(nextBoard, 2, false, isAiWhite, -99999, 99999);
+      if (score > bestScore) { bestScore = score; bestMoves = [m]; }
+      else if (score === bestScore) bestMoves.push(m);
+    });
+    chosen = bestMoves[Math.floor(Math.random() * bestMoves.length)];
+  }
+  aiThinking = false;
+  if (chosen) executeMove(chosen.from, chosen.to);
+}
+
+function updateStatus() {
+  document.getElementById('statusText').innerText = 'Giliran: ' + (turn === 'w' ? 'Putih' : 'Hitam');
+}
+
+resetGame();
+</script>
+</body>
+</html>
